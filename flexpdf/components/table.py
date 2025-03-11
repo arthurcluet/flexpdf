@@ -10,16 +10,13 @@ from reportlab.platypus import Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 
 class TableCell:
-    """A table cell that only accepts a string or a formatted Paragraph."""
+    """Represents a single table cell with customizable styles and alignment."""
 
     def __init__(self, content, style=None):
         """
-        :param content: Must be a string or a Paragraph.
-        :param style: Dictionary with styles like {"bold": True, "text_color": "black"}.
+        :param content: The text or a Paragraph inside the cell.
+        :param style: Dictionary with styles like {"bold": True, "text_color": "black", "align": "right"}.
         """
-        if not isinstance(content, (str, Paragraph)):
-            raise TypeError("TableCell content must be a string or a Paragraph.")
-
         self.content = content
         self.style = style or {}
 
@@ -85,24 +82,48 @@ class TableComponent(Component):
         return self.width, self.height
 
     def apply_table_styles(self):
-        """Ensures only actual headers are styled correctly."""
+        """Ensures that individual TableHeader or TableCell styles are prioritized over row styles, including alignment."""
         styles = [
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),  # Keep borders
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')  # Default vertical alignment
         ]
 
-        # Ensure we only apply header styling to actual headers
-        if self.repeatHeader and isinstance(self.rows[0].cells[0], TableHeader):
-            styles.append(('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#3f51b5")))
-            styles.append(('TEXTCOLOR', (0, 0), (-1, 0), colors.white))
+        # Apply header styles if repeatHeader=True
+        if self.repeatHeader:
+            for col in range(len(self.rows[0].cells)):  # Apply to header row only
+                header_cell = self.rows[0].cells[col]
+                if isinstance(header_cell, TableHeader):
+                    bg_color = header_cell.style.get("background", colors.HexColor("#3f51b5"))
+                    text_color = header_cell.style.get("text_color", colors.white)
+                    styles.append(('BACKGROUND', (col, 0), (col, 0), bg_color))
+                    styles.append(('TEXTCOLOR', (col, 0), (col, 0), text_color))
 
-        # Apply per-row background styles dynamically
+        # Apply row styles while ensuring individual TableHeader styles are not overridden
         for row_idx, row in enumerate(self.rows):
-            if row.style.get("background"):
-                styles.append(('BACKGROUND', (0, row_idx), (-1, row_idx), row.style["background"]))
+            row_bg = row.style.get("background", None)
+            row_text_color = row.style.get("text_color", None)
+
+            for col_idx, cell in enumerate(row.cells):
+                if isinstance(cell, TableHeader):  # Prioritize TableHeader styles
+                    continue  # Skip because it's already styled
+
+                # Apply row background color **only if cell doesn't have its own**
+                if row_bg and "background" not in cell.style:
+                    styles.append(('BACKGROUND', (col_idx, row_idx), (col_idx, row_idx), row_bg))
+
+                # Apply row text color **only if cell doesn't have its own**
+                if row_text_color and "text_color" not in cell.style:
+                    styles.append(('TEXTCOLOR', (col_idx, row_idx), (col_idx, row_idx), row_text_color))
+
+                # **New: Apply individual cell alignment (if set)**
+                cell_align = cell.style.get("align", "left")  # Default to left alignment
+                align_map = {"left": "LEFT", "center": "CENTER", "right": "RIGHT"}
+                if cell_align in align_map:
+                    styles.append(('ALIGN', (col_idx, row_idx), (col_idx, row_idx), align_map[cell_align]))
 
         self.table.setStyle(TableStyle(styles))
+
+
 
 
 
