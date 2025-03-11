@@ -1,0 +1,6 @@
+Metadata-Version: 2.1
+Name: flexpdf
+Version: 0.1.0
+Summary: A component-based library for building structured PDFs with ReportLab
+Author: Your Name
+Requires-Dist: reportlab
